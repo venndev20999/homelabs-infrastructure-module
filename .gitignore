@@ -1,0 +1,66 @@
+# 🏗️ .gitignore for Homelabs Infrastructure Modules
+
+# --- Terraform ---
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data, such as
+# password, private keys, and other secrets. These should not be part of version 
+# control as they are data, not configuration. For more information, see
+# https://www.terraform.io/docs/language/values/variables.html#variable-definitions-tfvars-files
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally and so
+# are not considered part of the permanent site manifest
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Include override files you do wish to add to version control using negated pattern
+# !example_override.tf
+
+# Include plugin cache directory
+.terraform.lock.hcl
+
+# --- Ansible ---
+*.retry
+ansible.log
+cluster-config.yaml
+# Only ignore collections/ if you're not using them as part of the repo
+# ansible/collections/
+# Only ignore roles/ if they are external roles installed via ansible-galaxy
+# (But in this repo, roles/ are our source of truth, so we SHOULD NOT ignore them)
+# !ansible/roles/
+
+# --- Environment & Secrets ---
+.env
+.env.*
+.secrets
+secrets.*
+
+# --- OS Specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/

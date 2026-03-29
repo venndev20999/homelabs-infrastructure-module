@@ -1,0 +1,6 @@
+---
+# Shared external dependencies for Ansible roles
+# Add external roles here if needed
+# roles:
+#   - name: geerlingguy.docker
+#     src: geerlingguy.docker
