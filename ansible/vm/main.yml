@@ -1,0 +1,100 @@
+- name: "[preflight] Check virt-clone is available"
+  command: which virt-clone
+  changed_when: false
+
+# ── Clone VMs ─────────────────────────────────────────────────────────
+- name: "[vm] Check if VM already exists"
+  command: virsh dominfo "{{ item.name }}"
+  loop: "{{ all_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: vm_exists
+  ignore_errors: yes
+  changed_when: false
+
+- name: "[vm] Clone VM from base-server-ubuntu-24"
+  shell: |
+    virt-clone \
+      --original base-server-ubuntu-24 \
+      --name "{{ item.item.name }}" \
+      --auto-clone
+  loop: "{{ vm_exists.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.rc != 0   # only clone if VM does NOT exist
+
+- name: "[vm] Configure limits (CPU & RAM) and ensure running"
+  shell: |
+    virsh setvcpus "{{ item.name }}" {{ item.vcpus }} --maximum --config
+    virsh setvcpus "{{ item.name }}" {{ item.vcpus }} --config
+    virsh setmaxmem "{{ item.name }}" {{ item.memory }}M --config
+    virsh setmem "{{ item.name }}" {{ item.memory }}M --config
+    
+    STATE=$(virsh domstate "{{ item.name }}")
+    if [ "$STATE" != "running" ]; then
+      virsh start "{{ item.name }}"
+    fi
+  loop: "{{ all_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "[net] Retrieve MAC address for DHCP explicitly from XML"
+  shell: |
+    MAC=$(virsh dumpxml "{{ item.name }}" | grep "mac address=" | cut -d\' -f2 | head -1)
+    if [ -n "$MAC" ]; then
+      echo "$MAC"
+      exit 0
+    else
+      exit 1
+    fi
+  loop: "{{ all_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: mac_results
+  changed_when: false
+
+- name: "[net] Fail if MAC not found for any node"
+  fail:
+    msg: "Could not get MAC address for {{ item.item.name }} — VM may not have started properly"
+  loop: "{{ mac_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.stdout == "TIMEOUT" or item.rc != 0
+
+# ── Register static DHCP reservations ─────────────────────────────────
+- name: "[dhcp] Remove existing DHCP entry for MAC (if any)"
+  shell: |
+    MAC="{{ item.stdout }}"
+    EXISTING=$(virsh net-dumpxml {{ vm_network }} | grep -i "mac='$MAC'" | sed "s/^\s*//")
+    if [ -n "$EXISTING" ]; then
+      virsh net-update {{ vm_network }} delete ip-dhcp-host \
+        --xml "$EXISTING" --live --config
+    fi
+  loop: "{{ mac_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  ignore_errors: yes
+  changed_when: false
+
+- name: "[dhcp] Register static IP → MAC reservation"
+  command: >
+    virsh net-update {{ vm_network }} add ip-dhcp-host
+    --xml "<host mac='{{ item.0.stdout }}' name='{{ item.1.name }}' ip='{{ item.1.ip }}'/>"
+    --live --config
+  with_together:
+    - "{{ mac_results.results }}"
+    - "{{ all_nodes }}"
+  loop_control:
+    label: "{{ item.1.name }} → {{ item.1.ip }}"
+
+# ── Summary ────────────────────────────────────────────────────────────
+- name: "[summary] VM allocation"
+  debug:
+    msg:
+      - "============================================="
+      - "Provisioned VMs via cloning [base-server-ubuntu-24]"
+      - "============================================="
+      - "{% for r in mac_results.results %}  {{ r.item.name }}: IP={{ r.item.ip }}  MAC={{ r.stdout }}{% endfor %}"
+      - "============================================="
+      - "Note: VM might need a reboot or wait a minute for DHCP interface to pick up the new static IP."
+      - "      virsh reboot {{ all_nodes[0].name }}"
