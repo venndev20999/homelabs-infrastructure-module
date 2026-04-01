@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     libvirt = {
-      source = "dmacvicar/libvirt"
+      source  = "dmacvicar/libvirt"
+      version = "~> 0.7.6"
     }
   }
 }
@@ -44,9 +45,6 @@ resource "libvirt_domain" "talos" {
     autoport    = true
   }
 
-  graphics {
-    type = "spice"
-  }
 
   video {
     type = "qxl"

@@ -21,29 +21,48 @@ homelabs-infrastructure-module/
 
 ---
 
-## 🚀 How to use in "Live" Infrastructure
+## 🚀 Usage in Client Repositories
 
-The "Client" repository (e.g., `infrastructure-live`) calls these modules using Git-based references.
+The "Client" repository (e.g., `infrastructure-live`) calls these modules using Git-based references. This ensures stability and reusability.
 
-### A. Calling Terraform Modules
-In your client repository (e.g., `infrastructure-live/terraform/dev/main.tf`), point directly to the subdirectory of this Git repository.
+### A. Generic VM (Terraform)
+Provision a simple Ubuntu VM with DHCP reservation.
 
 ```hcl
-module "my_vm" {
+module "app_server" {
   # Syntax: git::URL//path/to/module?ref=version
   source = "git::github.com/venndev20999/homelabs-infrastructure-module.git//terraform/vm-instance?ref=v1.0.0"
-  
-  name       = "web-server"
-  ip_address = "192.168.122.50"
-  # ... other variables
+
+  name             = "web-server"
+  ip_address       = "192.168.122.50"
+  memory           = 2048
+  vcpus            = 1
+  base_volume_name = "ubuntu-server"
 }
 ```
 
-> [!TIP]
-> Using `?ref=v1.0.0` is critical. It allows you to update the module repo without immediately breaking all your environments.
+### B. Talos Kubernetes Cluster (Terraform)
+Chain the `talos-instance` and `talos-cluster` modules for a full K8s setup.
 
-### B. Calling Ansible Roles
-In your client repository (e.g., `infrastructure-live/ansible/requirements.yml`), define the Git source for the roles.
+```hcl
+# 1. Provision VMs for Talos
+module "talos_nodes" {
+  source = "git::github.com/venndev20999/homelabs-infrastructure-module.git//terraform/talos-instance?ref=v1.0.0"
+  # ... node configurations
+}
+
+# 2. Bootstrap the Talos cluster once nodes are ready
+module "talos_cluster" {
+  source           = "git::github.com/venndev20999/homelabs-infrastructure-module.git//terraform/talos-cluster?ref=v1.0.0"
+  cluster_name     = "homelab"
+  controlplane_ips = [module.talos_nodes[0].ip_address]
+  worker_ips       = [module.talos_nodes[1].ip_address]
+  # ... cluster configurations
+}
+```
+
+### C. Ansible Roles (ansible-galaxy)
+In your client repository, define the Git source in `requirements.yml`.
 
 ```yaml
 # infrastructure-live/ansible/requirements.yml
@@ -52,14 +71,14 @@ roles:
     src: https://github.com/venndev20999/homelabs-infrastructure-module.git
     scm: git
     version: v1.0.0
-    # This 'path' tells Ansible where inside the repo the roles are
     path: ansible/roles/patching
 ```
 
-To download these to your local machine:
+To install:
 ```bash
 ansible-galaxy install -r requirements.yml -p ./roles/
 ```
+
 
 ---
 
