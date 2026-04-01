@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     libvirt = {
-      source = "dmacvicar/libvirt"
+      source  = "dmacvicar/libvirt"
+      version = ">= 0.7.6"
     }
   }
 }
@@ -17,6 +18,7 @@ resource "libvirt_volume" "vm_disk" {
 
 resource "libvirt_domain" "vm" {
   name   = var.name
+  type   = "kvm" # Explicitly define virtualization type
   memory = var.memory
   vcpu   = var.vcpus
 
